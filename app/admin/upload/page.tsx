@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { 
   Upload, CheckCircle, AlertCircle, Download, 
   Zap, ArrowRight, History, PieChart, Share2, Sparkles,
@@ -87,7 +88,7 @@ export default function UploadPage() {
   
   // --- State: Step 3 (Configuration & Preview) ---
   const [previewData, setPreviewData] = useState<any[]>([])
-  const [selectedTelecaller, setSelectedTelecaller] = useState<string | null>(null)
+  const [selectedTelecallers, setSelectedTelecallers] = useState<string[]>([])
   const [autoDistribute, setAutoDistribute] = useState(false)
   const [activeCount, setActiveCount] = useState<number>(0)
   const [duplicateAction, setDuplicateAction] = useState<'skip' | 'allow'>('skip')
@@ -336,10 +337,11 @@ export default function UploadPage() {
                                 assigneeId = distributionList[roundRobinIndex % distributionList.length];
                                 roundRobinIndex++;
                                 wasAssignedInThisUpload = true;
-                            } else if (selectedTelecaller && selectedTelecaller !== "unassigned") {
-                                assigneeId = selectedTelecaller;
+                            } else if (selectedTelecallers.length > 0 && !selectedTelecallers.includes("unassigned")) {
+                                assigneeId = selectedTelecallers[roundRobinIndex % selectedTelecallers.length];
+                                roundRobinIndex++;
                                 wasAssignedInThisUpload = true;
-                            } else if (selectedTelecaller === "unassigned") {
+                            } else if (selectedTelecallers.includes("unassigned")) {
                                 assigneeId = null;
                             }
 
@@ -439,8 +441,9 @@ export default function UploadPage() {
                   if (autoDistribute && distributionList.length > 0) {
                       assigneeId = distributionList[roundRobinIndex % distributionList.length];
                       roundRobinIndex++;
-                  } else if (selectedTelecaller && selectedTelecaller !== "unassigned") {
-                      assigneeId = selectedTelecaller
+                  } else if (selectedTelecallers.length > 0 && !selectedTelecallers.includes("unassigned")) {
+                      assigneeId = selectedTelecallers[roundRobinIndex % selectedTelecallers.length];
+                      roundRobinIndex++;
                   }
 
                   if (assigneeId) {
@@ -560,7 +563,7 @@ export default function UploadPage() {
 
     setStep(4)
     
-    if (autoDistribute || (selectedTelecaller && selectedTelecaller !== 'unassigned')) {
+    if (autoDistribute || (selectedTelecallers.length > 0 && !selectedTelecallers.includes('unassigned'))) {
         setShowSummaryDialog(true)
     }
   }
@@ -976,17 +979,16 @@ export default function UploadPage() {
                   </div>
                   
                   {!autoDistribute && (
-                    <Select value={selectedTelecaller || ""} onValueChange={setSelectedTelecaller}>
-                      <SelectTrigger className="font-semibold text-xs rounded-xl shadow-2xs">
-                        <SelectValue placeholder="Select specific user" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        <SelectItem value="unassigned" className="font-semibold text-xs">Unassigned</SelectItem>
-                        {telecallers.map(tc => (
-                          <SelectItem key={tc.id} value={tc.id}>{tc.full_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <MultiSelect
+                      options={[
+                        { value: "unassigned", label: "Unassigned" },
+                        ...telecallers.map(tc => ({ value: tc.id, label: tc.full_name }))
+                      ]}
+                      value={selectedTelecallers}
+                      onValueChange={setSelectedTelecallers}
+                      placeholder="Select specific users..."
+                      className="font-semibold text-xs rounded-xl shadow-2xs bg-white"
+                    />
                   )}
                 </div>
 
