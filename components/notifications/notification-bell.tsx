@@ -18,6 +18,7 @@ import { RealtimeChannel } from "@supabase/supabase-js"
 import { formatDistanceToNow } from "date-fns"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { showLocalNotification } from "@/lib/notifications/show-local-notification"
 
 // --- TYPES ---
 interface NotificationItem {
@@ -106,12 +107,10 @@ export function NotificationBell() {
             })
             
             // 4. System Notification
-            if (Notification.permission === "granted") {
-               new Notification(newNotif.title, {
-                 body: newNotif.message,
-                 icon: '/icons/icon-192x192.jpg'
-               })
-            }
+            showLocalNotification(newNotif.title, {
+              body: newNotif.message,
+              icon: '/icons/icon-192x192.jpg'
+            })
           }
         )
         .subscribe()

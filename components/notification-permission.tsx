@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { showLocalNotification } from "@/lib/notifications/show-local-notification";
 
 export function NotificationPermission() {
   const [isSupported, setIsSupported] = useState<boolean | null>(null);
@@ -24,7 +25,7 @@ export function NotificationPermission() {
         if (permission === "granted") {
           console.log("Notification permission granted");
           // Create a welcome notification
-          new Notification("Welcome to Hanva CRM", {
+          showLocalNotification("Welcome to Hanva CRM", {
             body: "You'll receive notifications for follow-ups and reminders",
             icon: "/icon-192.png",
             tag: "welcome"

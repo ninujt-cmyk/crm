@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { subscribeUser } from "@/lib/notifications/push"
+import { showLocalNotification } from "@/lib/notifications/show-local-notification"
 
 export function useNotifications() {
   const [isPermissionGranted, setIsPermissionGranted] = useState(false)
@@ -38,7 +39,7 @@ export function useNotifications() {
       return
     }
 
-    return new Notification(title, {
+    showLocalNotification(title, {
       icon: "/icons/icon-192x192.png",
       badge: "/icons/icon-72x72.png",
       ...options,

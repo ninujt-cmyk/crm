@@ -1,3 +1,4 @@
+import { showLocalNotification } from "@/lib/notifications/show-local-notification";
 // app/debug/follow-ups-test.tsx
 "use client"
 
@@ -64,7 +65,7 @@ export default function FollowUpsTest() {
 
   const testNotification = () => {
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("Test Notification", {
+      showLocalNotification("Test Notification", {
         body: "Follow-ups system is working correctly!",
         icon: "/icons/icon-192x192.png"
       })

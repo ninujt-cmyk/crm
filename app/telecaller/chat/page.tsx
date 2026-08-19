@@ -11,6 +11,7 @@ import {
   Download, FileText, File, Image as ImageIcon, ArrowLeft
 } from "lucide-react"
 import { sendWhatsAppText } from "@/app/actions/whatsapp"
+import { showLocalNotification } from "@/lib/notifications/show-local-notification"
 import Link from "next/link"
 
 // --- TYPES ---
@@ -134,12 +135,10 @@ export default function AdminWhatsAppPanel() {
              if (isLookingAtDifferentTab || isLookingAtDifferentChat) {
                 playNotificationSound();
     
-                if ("Notification" in window && Notification.permission === "granted") {
-                   new Notification("New WhatsApp Message", {
-                      body: newMsg.content ? newMsg.content.substring(0, 50) + "..." : "You received a new message.",
-                      icon: "/favicon.ico"
-                   });
-                }
+                showLocalNotification("New WhatsApp Message", {
+                   body: newMsg.content ? newMsg.content.substring(0, 50) + "..." : "You received a new message.",
+                   icon: "/favicon.ico"
+                });
              }
              return currentSelectedLead; 
         });
