@@ -12,11 +12,11 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { MultiSelect } from "@/components/ui/multi-select"
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu"
 import { 
   Upload, CheckCircle, AlertCircle, Download, 
   Zap, ArrowRight, History, PieChart, Share2, Sparkles,
-  Search, Copy, Check, Phone
+  Search, Copy, Check, Phone, ChevronDown
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
@@ -979,16 +979,67 @@ export default function UploadPage() {
                   </div>
                   
                   {!autoDistribute && (
-                    <MultiSelect
-                      options={[
-                        { value: "unassigned", label: "Unassigned" },
-                        ...telecallers.map(tc => ({ value: tc.id, label: tc.full_name }))
-                      ]}
-                      value={selectedTelecallers}
-                      onValueChange={setSelectedTelecallers}
-                      placeholder="Select specific users..."
-                      className="font-semibold text-xs rounded-xl shadow-2xs bg-white"
-                    />
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          className="w-full justify-between font-semibold text-xs rounded-xl shadow-2xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-10"
+                        >
+                          <span className="truncate">
+                            {selectedTelecallers.length === 0 ? (
+                              <span className="text-slate-500 font-normal">Select specific users...</span>
+                            ) : selectedTelecallers.includes("unassigned") ? (
+                              "Unassigned"
+                            ) : selectedTelecallers.length === 1 ? (
+                              telecallers.find(t => t.id === selectedTelecallers[0])?.full_name || "1 Selected"
+                            ) : (
+                              `${selectedTelecallers.length} Users Selected`
+                            )}
+                          </span>
+                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] min-w-[200px]" align="start">
+                        <DropdownMenuLabel className="text-xs">Select Users</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuCheckboxItem
+                          checked={selectedTelecallers.includes("unassigned")}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedTelecallers(["unassigned"]);
+                            } else {
+                              setSelectedTelecallers([]);
+                            }
+                          }}
+                          className="text-xs font-semibold"
+                        >
+                          Unassigned
+                        </DropdownMenuCheckboxItem>
+                        <DropdownMenuSeparator />
+                        {telecallers.map((tc) => {
+                          const isSelected = selectedTelecallers.includes(tc.id);
+                          return (
+                            <DropdownMenuCheckboxItem
+                              key={tc.id}
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                setSelectedTelecallers(prev => {
+                                  let next = prev.filter(id => id !== "unassigned");
+                                  if (checked) {
+                                    return [...next, tc.id];
+                                  } else {
+                                    return next.filter(id => id !== tc.id);
+                                  }
+                                });
+                              }}
+                              className="text-xs font-semibold"
+                            >
+                              {tc.full_name}
+                            </DropdownMenuCheckboxItem>
+                          );
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
 
