@@ -980,12 +980,8 @@ export default function UploadPage() {
                   
                   {!autoDistribute && (
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          className="w-full justify-between font-semibold text-xs rounded-xl shadow-2xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-10"
-                        >
-                          <span className="truncate">
+                      <DropdownMenuTrigger className="flex items-center w-full justify-between font-semibold text-xs rounded-xl shadow-2xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 h-10 px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors outline-none focus:ring-2 focus:ring-indigo-500/50">
+                          <span className="truncate text-slate-700 dark:text-slate-200">
                             {selectedTelecallers.length === 0 ? (
                               <span className="text-slate-500 font-normal">Select specific users...</span>
                             ) : selectedTelecallers.includes("unassigned") ? (
@@ -997,9 +993,8 @@ export default function UploadPage() {
                             )}
                           </span>
                           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] min-w-[200px]" align="start">
+                      <DropdownMenuContent className="min-w-[250px] max-h-[300px] overflow-y-auto" align="start">
                         <DropdownMenuLabel className="text-xs">Select Users</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuCheckboxItem
