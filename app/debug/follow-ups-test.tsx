@@ -1,7 +1,7 @@
-import { showLocalNotification } from "@/lib/notifications/show-local-notification";
-// app/debug/follow-ups-test.tsx
 "use client"
+// app/debug/follow-ups-test.tsx
 
+import { showLocalNotification } from "@/lib/notifications/show-local-notification";
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"

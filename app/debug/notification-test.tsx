@@ -1,7 +1,7 @@
-import { showLocalNotification } from "@/lib/notifications/show-local-notification";
-// app/debug/notification-test.tsx
 "use client"
+// app/debug/notification-test.tsx
 
+import { showLocalNotification } from "@/lib/notifications/show-local-notification";
 import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
