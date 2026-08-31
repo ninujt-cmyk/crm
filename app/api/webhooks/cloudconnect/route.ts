@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// Initialize Supabase Admin Client to bypass RLS for webhooks
-// Make sure to add SUPABASE_SERVICE_ROLE_KEY to your .env
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// Helper to lazy-load the Supabase Admin Client to bypass RLS for webhooks
+// This prevents Next.js build-time errors when env variables are missing during static analysis.
+const getSupabaseAdmin = () => {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  )
+}
 
 export async function POST(req: Request) {
     return handleWebhook(req);
@@ -20,6 +22,14 @@ async function handleWebhook(req: Request) {
   try {
     const url = new URL(req.url);
     const searchParams = url.searchParams;
+    
+    // 0. API Key Verification
+    const expectedApiKey = process.env.CLOUDCONNECT_WEBHOOK_SECRET || 'your-default-secure-api-key';
+    const providedApiKey = searchParams.get('api_key') || req.headers.get('x-api-key') || req.headers.get('authorization')?.replace('Bearer ', '');
+
+    if (providedApiKey !== expectedApiKey) {
+        return NextResponse.json({ error: 'Unauthorized: Invalid API Key' }, { status: 401 });
+    }
     
     // Parse Payload (CloudConnect usually sends via Query Params for Webhooks)
     const uuid = searchParams.get('uuid') || '';
@@ -36,6 +46,8 @@ async function handleWebhook(req: Request) {
     // 1. Find the Lead
     // Format the number to get the last 10 digits for better matching
     const cleanNumber = callerNumber.replace(/^\+?\d{1,3}/, '').slice(-10); 
+    
+    const supabaseAdmin = getSupabaseAdmin();
     
     const { data: leads } = await supabaseAdmin
         .from('leads')
