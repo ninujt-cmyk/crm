@@ -83,6 +83,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.4",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/node": "^22.18.6",
     "@types/papaparse": "^5.5.2",
@@ -92,6 +93,7 @@
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "wrangler": "^4.127.1"
   }
 }
