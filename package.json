@@ -5,6 +5,7 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "build": "next build",
+    "build:cloudflare": "opennextjs-cloudflare build",
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
