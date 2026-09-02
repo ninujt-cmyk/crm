@@ -11,6 +11,7 @@ const supabaseAdmin = createClient(
 )
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // Increase Vercel timeout to 60s (requires Pro plan)
 
 // TARGETS
 const TARGET_DAILY_CALLS = 350
@@ -214,7 +215,7 @@ export async function GET(request: Request) {
           dateStr
         })
         emailsSent++
-        await delay(500) // Slight delay to respect Resend API limits
+        await delay(100) // Slight delay to respect Resend API limits
       }
 
       // 2. Send "Global Report" to Admins of THIS Tenant
@@ -235,7 +236,7 @@ export async function GET(request: Request) {
             console.log(`✅ Admin report sent to ${admin.email}. Msg ID: ${data?.id}`)
           }
           emailsSent++
-          await delay(500)
+          await delay(100)
         }
       }
 
