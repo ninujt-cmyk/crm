@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
+export const maxDuration = 300; // 5 minutes to prevent Vercel timeout
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     const supabase = await createClient()
@@ -24,7 +27,8 @@ export async function GET(req: Request) {
       query = query.eq('status', status)
     }
 
-    const { data: leads, error } = await query.limit(50000)
+    // Limit decreased to prevent OOM. For huge exports, pagination + streaming is needed.
+    const { data: leads, error } = await query.limit(5000)
     
     if (error) throw error
 
