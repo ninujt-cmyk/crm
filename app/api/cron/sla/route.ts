@@ -3,11 +3,32 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // 5 minutes max
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-project.supabase.co",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder-key" // Admin client required to see all tenants
 );
+
+const BATCH_SIZE = 50;
+
+// Paginated batch generator - avoids loading all rows into memory
+async function* fetchLeadsBatched(
+  filters: (q: ReturnType<typeof supabaseAdmin.from>) => any,
+  columns: string
+) {
+  let from = 0;
+  while (true) {
+    let query = supabaseAdmin.from("leads").select(columns);
+    query = filters(query);
+    const { data, error } = await query.range(from, from + BATCH_SIZE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    yield data;
+    if (data.length < BATCH_SIZE) break;
+    from += BATCH_SIZE;
+  }
+}
 
 // --- IST TIMEZONE CALCULATOR (Used for Lead Distribution count) ---
 function getStartOfTodayIST() {
@@ -72,38 +93,6 @@ export async function GET(request: Request) {
     for (const tenant of tenants) {
         console.log(`\n🏢 Processing Tenant: ${tenant.name} (${tenant.id})`);
 
-        // Fetch SLA and NR Leads strictly for this tenant
-        const [slaResponse, nrResponse] = await Promise.all([
-          // SLA LEADS (Stuck in 'new' for 60+ mins)
-          supabaseAdmin
-            .from("leads")
-            .select("id, assigned_to, notes")
-            .eq("tenant_id", tenant.id) // ISOLATION
-            .eq("status", "new")
-            .not("assigned_to", "is", null)
-            .lt("created_at", slaTimeLimit),
-            
-          // NR LEADS (Stuck in 'nr' for 3+ hours)
-          supabaseAdmin
-            .from("leads")
-            .select("id, assigned_to, notes, tags")
-            .eq("tenant_id", tenant.id) // ISOLATION
-            .eq("status", "nr")
-            .not("assigned_to", "is", null)
-            .gte("created_at", NR_START_DATE_LIMIT)
-            .lt("last_contacted", nrTimeLimit) 
-        ]);
-
-        const expiredLeads = slaResponse.data || [];
-        const nrLeads = nrResponse.data || [];
-
-        if (expiredLeads.length === 0 && nrLeads.length === 0) {
-          console.log(`   ✅ No SLA or NR breaches for ${tenant.name}.`);
-          continue; // Move to next tenant
-        }
-
-        console.log(`   ⚠️ Found ${expiredLeads.length} SLA breaches and ${nrLeads.length} NR leads.`);
-
         // Fetch active telecallers strictly for this tenant
         const { data: attendanceData } = await supabaseAdmin
             .from("attendance")
@@ -132,92 +121,101 @@ export async function GET(request: Request) {
             continue; // Skip this tenant, nobody is online to take the leads
         }
 
-        // Calculate fair distribution for this tenant's agents today
-        const { data: todaysLeads } = await supabaseAdmin
-            .from("leads")
-            .select("assigned_to")
-            .eq("tenant_id", tenant.id) // ISOLATION
-            .gte("created_at", startOfTodayISO);
-
+        // Calculate fair distribution using per-agent COUNT queries (no bulk row fetch)
         const leadCounts: Record<string, number> = {};
-        activeTelecallers.forEach(t => leadCounts[t.id] = 0);
-        if (todaysLeads) {
-            todaysLeads.forEach(l => {
-                if (l.assigned_to && leadCounts[l.assigned_to] !== undefined) leadCounts[l.assigned_to]++;
-            });
+        for (const agent of activeTelecallers) {
+            const { count } = await supabaseAdmin
+                .from("leads")
+                .select("id", { count: "exact", head: true })
+                .eq("tenant_id", tenant.id)
+                .eq("assigned_to", agent.id)
+                .gte("created_at", startOfTodayISO);
+            leadCounts[agent.id] = count || 0;
         }
 
-        // --- PROCESS SLA BREACHES ---
-        for (const lead of expiredLeads) {
-            const eligibleAgents = activeTelecallers.filter(t => t.id !== lead.assigned_to);
-            if (eligibleAgents.length === 0) continue; 
+        // --- PROCESS SLA BREACHES in batches ---
+        for await (const batch of fetchLeadsBatched(
+            (q) => q.eq("tenant_id", tenant.id).eq("status", "new").not("assigned_to", "is", null).lt("created_at", slaTimeLimit),
+            "id, assigned_to, notes"
+        )) {
+            for (const lead of batch) {
+                const eligibleAgents = activeTelecallers.filter(t => t.id !== lead.assigned_to);
+                if (eligibleAgents.length === 0) continue;
 
-            const minLeads = Math.min(...eligibleAgents.map(a => leadCounts[a.id]));
-            const tiedAgents = eligibleAgents.filter(a => leadCounts[a.id] === minLeads);
-            const winner = tiedAgents[Math.floor(Math.random() * tiedAgents.length)];
+                const minLeads = Math.min(...eligibleAgents.map(a => leadCounts[a.id]));
+                const tiedAgents = eligibleAgents.filter(a => leadCounts[a.id] === minLeads);
+                const winner = tiedAgents[Math.floor(Math.random() * tiedAgents.length)];
 
-            const breachNote = `🚨 [SYSTEM: SLA BREACH]\nLead was not contacted within ${SLA_MINUTES} mins. Automatically reassigned to ${winner.full_name}.`;
-            const updatedNotes = lead.notes ? `${lead.notes}\n\n${breachNote}` : breachNote;
-
-            await supabaseAdmin.from("leads").update({ 
-                assigned_to: winner.id,
-                notes: updatedNotes
-            })
-            .eq("id", lead.id)
-            .eq("tenant_id", tenant.id); // 🔴 EXTRA ISOLATION SAFETY
-
-            leadCounts[winner.id]++;
-            totalSlaReassigned++;
-        }
-
-        // --- PROCESS NR RECYCLING ---
-        for (const lead of nrLeads) {
-            let tags: string[] = [];
-            try { tags = Array.isArray(lead.tags) ? lead.tags : JSON.parse(lead.tags || '[]'); } catch(e) {}
-            
-            const nrStrikes = tags.filter(t => t.startsWith('NR_STRIKE_')).length;
-
-            if (nrStrikes >= 3) { 
-                const deadNote = `💀 [SYSTEM: DEAD BUCKET]\nLead reached maximum 4 'No Response' cycles. Moved to Dead Bucket.`;
-                const updatedNotes = lead.notes ? `${lead.notes}\n\n${deadNote}` : deadNote;
+                const breachNote = `🚨 [SYSTEM: SLA BREACH]\nLead was not contacted within ${SLA_MINUTES} mins. Automatically reassigned to ${winner.full_name}.`;
+                const updatedNotes = lead.notes ? `${lead.notes}\n\n${breachNote}` : breachNote;
 
                 await supabaseAdmin.from("leads").update({
-                    status: "dead_bucket",
-                    assigned_to: null, 
+                    assigned_to: winner.id,
                     notes: updatedNotes
                 })
                 .eq("id", lead.id)
-                .eq("tenant_id", tenant.id); // 🔴 EXTRA ISOLATION SAFETY
-                
-                totalMovedToDead++;
-                continue;
+                .eq("tenant_id", tenant.id);
+
+                leadCounts[winner.id]++;
+                totalSlaReassigned++;
             }
-
-            const eligibleAgents = activeTelecallers.filter(t => t.id !== lead.assigned_to);
-            if (eligibleAgents.length === 0) continue;
-
-            const minLeads = Math.min(...eligibleAgents.map(a => leadCounts[a.id]));
-            const tiedAgents = eligibleAgents.filter(a => leadCounts[a.id] === minLeads);
-            const winner = tiedAgents[Math.floor(Math.random() * tiedAgents.length)];
-
-            const currentStrike = nrStrikes + 1;
-            tags.push(`NR_STRIKE_${currentStrike}`);
-
-            const reassignmentNote = `🔄 [SYSTEM: NR RECYCLE]\nLead was 'NR' for ${NR_HOURS} hours. Reassigned to ${winner.full_name} (Strike ${currentStrike}/4).`;
-            const updatedNotes = lead.notes ? `${lead.notes}\n\n${reassignmentNote}` : reassignmentNote;
-
-            await supabaseAdmin.from("leads").update({
-                assigned_to: winner.id,
-                status: "new",           
-                tags: tags,              
-                notes: updatedNotes
-            })
-            .eq("id", lead.id)
-            .eq("tenant_id", tenant.id); // 🔴 EXTRA ISOLATION SAFETY
-
-            leadCounts[winner.id]++;
-            totalNrRecycled++;
         }
+
+        // --- PROCESS NR RECYCLING in batches ---
+        for await (const batch of fetchLeadsBatched(
+            (q) => q.eq("tenant_id", tenant.id).eq("status", "nr").not("assigned_to", "is", null).gte("created_at", NR_START_DATE_LIMIT).lt("last_contacted", nrTimeLimit),
+            "id, assigned_to, notes, tags"
+        )) {
+            for (const lead of batch) {
+                let tags: string[] = [];
+                try { tags = Array.isArray(lead.tags) ? lead.tags : JSON.parse(lead.tags || '[]'); } catch(e) {}
+
+                const nrStrikes = tags.filter((t: string) => t.startsWith('NR_STRIKE_')).length;
+
+                if (nrStrikes >= 3) {
+                    const deadNote = `💀 [SYSTEM: DEAD BUCKET]\nLead reached maximum 4 'No Response' cycles. Moved to Dead Bucket.`;
+                    const updatedNotes = lead.notes ? `${lead.notes}\n\n${deadNote}` : deadNote;
+
+                    await supabaseAdmin.from("leads").update({
+                        status: "dead_bucket",
+                        assigned_to: null,
+                        notes: updatedNotes
+                    })
+                    .eq("id", lead.id)
+                    .eq("tenant_id", tenant.id);
+
+                    totalMovedToDead++;
+                    continue;
+                }
+
+                const eligibleAgents = activeTelecallers.filter(t => t.id !== lead.assigned_to);
+                if (eligibleAgents.length === 0) continue;
+
+                const minLeads = Math.min(...eligibleAgents.map(a => leadCounts[a.id]));
+                const tiedAgents = eligibleAgents.filter(a => leadCounts[a.id] === minLeads);
+                const winner = tiedAgents[Math.floor(Math.random() * tiedAgents.length)];
+
+                const currentStrike = nrStrikes + 1;
+                tags.push(`NR_STRIKE_${currentStrike}`);
+
+                const reassignmentNote = `🔄 [SYSTEM: NR RECYCLE]\nLead was 'NR' for ${NR_HOURS} hours. Reassigned to ${winner.full_name} (Strike ${currentStrike}/4).`;
+                const updatedNotes = lead.notes ? `${lead.notes}\n\n${reassignmentNote}` : reassignmentNote;
+
+                await supabaseAdmin.from("leads").update({
+                    assigned_to: winner.id,
+                    status: "new",
+                    tags: tags,
+                    notes: updatedNotes
+                })
+                .eq("id", lead.id)
+                .eq("tenant_id", tenant.id);
+
+                leadCounts[winner.id]++;
+                totalNrRecycled++;
+            }
+        }
+
+        console.log(`   ✅ Done with ${tenant.name}`);
     } // End of Tenant Loop
 
     console.log(`\n🏁 [GLOBAL CRON FINISHED] SLA Reassigned: ${totalSlaReassigned} | NR Recycled: ${totalNrRecycled} | Sent to Dead: ${totalMovedToDead}`);
