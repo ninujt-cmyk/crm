@@ -8,8 +8,12 @@ export async function GET(req: Request) {
     if (!user) return new Response("Unauthorized", { status: 401 })
 
     const { data: profile } = await supabase.from('users').select('tenant_id, role').eq('id', user.id).single()
-    if (!profile || profile.role !== 'admin') {
+    const adminAccessRoles = ["admin", "super_admin", "tenant_admin", "team_leader"]
+    if (!profile || !adminAccessRoles.includes(profile.role)) {
       return new Response("Unauthorized", { status: 403 })
+    }
+    if (!profile.tenant_id) {
+      return new Response("Missing tenant configuration", { status: 403 })
     }
 
     const { searchParams } = new URL(req.url)
