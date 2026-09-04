@@ -135,9 +135,10 @@ export async function GET(request: Request) {
 
         // --- PROCESS SLA BREACHES in batches ---
         for await (const batch of fetchLeadsBatched(
-            (q) => q.eq("tenant_id", tenant.id).eq("status", "new").not("assigned_to", "is", null).lt("created_at", slaTimeLimit),
+            (q) => q.eq("tenant_id", tenant.id).eq("status", "new").not("assigned_to", "is", null).lt("updated_at", slaTimeLimit),
             "id, assigned_to, notes"
         )) {
+            const updatePromises = [];
             for (const lead of batch) {
                 const eligibleAgents = activeTelecallers.filter(t => t.id !== lead.assigned_to);
                 if (eligibleAgents.length === 0) continue;
@@ -149,16 +150,20 @@ export async function GET(request: Request) {
                 const breachNote = `🚨 [SYSTEM: SLA BREACH]\nLead was not contacted within ${SLA_MINUTES} mins. Automatically reassigned to ${winner.full_name}.`;
                 const updatedNotes = lead.notes ? `${lead.notes}\n\n${breachNote}` : breachNote;
 
-                await supabaseAdmin.from("leads").update({
-                    assigned_to: winner.id,
-                    notes: updatedNotes
-                })
-                .eq("id", lead.id)
-                .eq("tenant_id", tenant.id);
+                updatePromises.push(
+                    supabaseAdmin.from("leads").update({
+                        assigned_to: winner.id,
+                        notes: updatedNotes,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq("id", lead.id)
+                    .eq("tenant_id", tenant.id)
+                );
 
                 leadCounts[winner.id]++;
                 totalSlaReassigned++;
             }
+            if (updatePromises.length > 0) await Promise.all(updatePromises);
         }
 
         // --- PROCESS NR RECYCLING in batches ---
@@ -166,6 +171,7 @@ export async function GET(request: Request) {
             (q) => q.eq("tenant_id", tenant.id).eq("status", "nr").not("assigned_to", "is", null).gte("created_at", NR_START_DATE_LIMIT).lt("last_contacted", nrTimeLimit),
             "id, assigned_to, notes, tags"
         )) {
+            const updatePromises = [];
             for (const lead of batch) {
                 let tags: string[] = [];
                 try { tags = Array.isArray(lead.tags) ? lead.tags : JSON.parse(lead.tags || '[]'); } catch(e) {}
@@ -176,13 +182,16 @@ export async function GET(request: Request) {
                     const deadNote = `💀 [SYSTEM: DEAD BUCKET]\nLead reached maximum 4 'No Response' cycles. Moved to Dead Bucket.`;
                     const updatedNotes = lead.notes ? `${lead.notes}\n\n${deadNote}` : deadNote;
 
-                    await supabaseAdmin.from("leads").update({
-                        status: "dead_bucket",
-                        assigned_to: null,
-                        notes: updatedNotes
-                    })
-                    .eq("id", lead.id)
-                    .eq("tenant_id", tenant.id);
+                    updatePromises.push(
+                        supabaseAdmin.from("leads").update({
+                            status: "dead_bucket",
+                            assigned_to: null,
+                            notes: updatedNotes,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq("id", lead.id)
+                        .eq("tenant_id", tenant.id)
+                    );
 
                     totalMovedToDead++;
                     continue;
@@ -201,18 +210,22 @@ export async function GET(request: Request) {
                 const reassignmentNote = `🔄 [SYSTEM: NR RECYCLE]\nLead was 'NR' for ${NR_HOURS} hours. Reassigned to ${winner.full_name} (Strike ${currentStrike}/4).`;
                 const updatedNotes = lead.notes ? `${lead.notes}\n\n${reassignmentNote}` : reassignmentNote;
 
-                await supabaseAdmin.from("leads").update({
-                    assigned_to: winner.id,
-                    status: "new",
-                    tags: tags,
-                    notes: updatedNotes
-                })
-                .eq("id", lead.id)
-                .eq("tenant_id", tenant.id);
+                updatePromises.push(
+                    supabaseAdmin.from("leads").update({
+                        assigned_to: winner.id,
+                        status: "new",
+                        tags: tags,
+                        notes: updatedNotes,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq("id", lead.id)
+                    .eq("tenant_id", tenant.id)
+                );
 
                 leadCounts[winner.id]++;
                 totalNrRecycled++;
             }
+            if (updatePromises.length > 0) await Promise.all(updatePromises);
         }
 
         console.log(`   ✅ Done with ${tenant.name}`);
