@@ -47,6 +47,8 @@ import { Switch } from "@/components/ui/switch"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
 import { cn } from "@/lib/utils"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useTenant, useMasterStatuses } from "@/context/tenant-provider"
+import { MASTER_STATUSES } from "@/lib/lead-statuses"
 
 const MAX_LEAD_CAP = 450; 
 
@@ -240,6 +242,16 @@ export function LeadsTable({ leads = [], telecallers = [], telecallerStatus = {}
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false)
   const [isCallInitiated, setIsCallInitiated] = useState(false)
   const [isPowerDialerOpen, setIsPowerDialerOpen] = useState(false)
+
+  const org = useTenant()
+  const masterStatuses = useMasterStatuses()
+  const currentMasterStatuses = masterStatuses.length > 0 ? masterStatuses : MASTER_STATUSES
+  const enabledStatusValues = org?.enabled_statuses || currentMasterStatuses.map(s => s.value)
+  const availableStatuses = currentMasterStatuses.filter(s => enabledStatusValues.includes(s.value))
+
+  const handleExportAll = (status: string) => {
+    window.location.href = `/api/admin/leads/export?status=${status}`;
+  }
 
   // 1. Protected Debounce Sync state
   const [inputValue, setInputValue] = useState(searchParams.get("search") || "")
@@ -1355,8 +1367,29 @@ export function LeadsTable({ leads = [], telecallers = [], telecallerStatus = {}
 
           <Button variant="outline" size="sm" onClick={exportToCSV}>
             <Download className="h-4 w-4 mr-2" />
-            Export
+            Export Page
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger className={triggerButtonClass}>
+              <Download className="h-4 w-4 mr-2 text-blue-500" />
+              Export All
+              <ChevronDown className="h-4 w-4 ml-2" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 max-h-[300px] overflow-y-auto">
+              <DropdownMenuLabel>Export by Status</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleExportAll("all")} className="font-semibold cursor-pointer">
+                All Statuses (Full Export)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {availableStatuses.map(s => (
+                <DropdownMenuItem key={s.value} onClick={() => handleExportAll(s.value)} className="cursor-pointer">
+                  {s.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Button variant="outline" size="sm" onClick={detectDuplicates}>
             <AlertTriangle className="h-4 w-4 mr-2" />
