@@ -99,10 +99,10 @@ importers:
         specifier: 1.1.6
         version: 1.1.6(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@supabase/ssr':
-        specifier: latest
+        specifier: ^0.12.3
         version: 0.12.3(@supabase/supabase-js@2.110.7)
       '@supabase/supabase-js':
-        specifier: latest
+        specifier: ^2.110.7
         version: 2.110.7
       '@upstash/qstash':
         specifier: ^2.10.1
@@ -111,7 +111,7 @@ importers:
         specifier: ^1.37.0
         version: 1.38.0
       '@vercel/analytics':
-        specifier: latest
+        specifier: ^2.0.1
         version: 2.0.1(next@14.2.35(@opentelemetry/api@1.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       '@vladmandic/face-api':
         specifier: ^1.7.15
@@ -132,7 +132,7 @@ importers:
         specifier: 1.0.4
         version: 1.0.4(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       date-fns:
-        specifier: latest
+        specifier: ^4.4.0
         version: 4.4.0
       dotenv:
         specifier: ^17.4.2
@@ -188,9 +188,6 @@ importers:
       react-resizable-panels:
         specifier: ^2.1.7
         version: 2.1.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react-toastify:
-        specifier: latest
-        version: 11.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       recharts:
         specifier: ^3.8.1
         version: 3.9.2(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react-is@19.2.7)(react@18.3.1)(redux@5.0.1)
@@ -198,7 +195,7 @@ importers:
         specifier: ^6.5.2
         version: 6.17.2
       sonner:
-        specifier: latest
+        specifier: ^2.0.7
         version: 2.0.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       tailwind-merge:
         specifier: ^2.5.5
@@ -210,7 +207,7 @@ importers:
         specifier: ^0.9.9
         version: 0.9.9(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       web-push:
-        specifier: latest
+        specifier: ^3.6.7
         version: 3.6.7
       zod:
         specifier: ^4.4.3
@@ -3566,12 +3563,6 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
-
-  react-toastify@11.1.0:
-    resolution: {integrity: sha512-e9h23x3phN0wbFeB6yovmWp7lobzV4CaCH0LO8nVP6H7Y+3GbcLpIzMm9dJhcp1RXbpyfvjgpfXqO80QAmn7sg==}
-    peerDependencies:
-      react: ^18 || ^19
-      react-dom: ^18 || ^19
 
   react@18.3.1:
     resolution: {integrity: sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==}
@@ -7540,12 +7531,6 @@ snapshots:
       tslib: 2.8.1
     optionalDependencies:
       '@types/react': 18.3.31
-
-  react-toastify@11.1.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
-    dependencies:
-      clsx: 2.1.1
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
 
   react@18.3.1:
     dependencies:
