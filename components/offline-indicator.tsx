@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Wifi, WifiOff, RefreshCw, Clock, AlertCircle } from "lucide-react"
@@ -12,24 +12,14 @@ export function OfflineIndicator() {
   const [pendingCount, setPendingCount] = useState(0)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (typeof window === "undefined") return
 
     // Set initial online status
-    setIsOnline(navigator.onLine)
-
-    const handleOnline = () => {
-      setIsOnline(true)
-      setError(null)
-    }
-    const handleOffline = () => {
-      setIsOnline(false)
-      setError(null)
-    }
-
-    window.addEventListener("online", handleOnline)
-    window.addEventListener("offline", handleOffline)
+    const initialOnline = navigator.onLine
+    setIsOnline(initialOnline)
 
     // Update pending count periodically
     const updatePendingCount = async () => {
@@ -44,16 +34,45 @@ export function OfflineIndicator() {
       }
     }
 
+    const startInterval = () => {
+      if (!intervalRef.current) {
+        intervalRef.current = setInterval(updatePendingCount, 5000)
+      }
+    }
+
+    const stopInterval = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+
+    const handleOnline = () => {
+      setIsOnline(true)
+      setError(null)
+      stopInterval()
+    }
+    const handleOffline = () => {
+      setIsOnline(false)
+      setError(null)
+      startInterval()
+    }
+
+    window.addEventListener("online", handleOnline)
+    window.addEventListener("offline", handleOffline)
+
     // Initial update
     updatePendingCount()
     
-    // Set up interval for periodic updates
-    const interval = setInterval(updatePendingCount, 5000) // Check every 5 seconds
+    // Only start interval if offline
+    if (!initialOnline) {
+      startInterval()
+    }
 
     return () => {
       window.removeEventListener("online", handleOnline)
       window.removeEventListener("offline", handleOffline)
-      clearInterval(interval)
+      stopInterval()
     }
   }, [])
 

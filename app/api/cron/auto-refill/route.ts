@@ -125,51 +125,66 @@ export async function GET(request: Request) {
 
         let tenantRefilled = 0;
 
-        // SEQUENTIALLY REFILL STARVED AGENTS FROM THEIR OWN POOL
-        for (const agent of starvedAgents) {
-            console.log(`   🔍 Searching pool for: ${agent.full_name}`);
-
-            const { data: poolLeads, error: poolError } = await supabaseAdmin
+        // REFILL STARVED AGENTS FROM THEIR OWN POOL IN BULK
+        const totalNeeded = starvedAgents.length * 10;
+        
+        if (totalNeeded > 0) {
+            const { data: allPoolLeads, error: poolError } = await supabaseAdmin
                 .from("leads")
                 .select("id, notes")
                 .eq("tenant_id", tenantId) // ISOLATION: Only pull leads from this company!
                 .in("status", ["nr", "NR", "Not Reachable", "not_reachable", "Not_Reachable"]) 
-                .neq("assigned_to", agent.id) 
                 .order("last_contacted", { ascending: true, nullsFirst: true }) 
-                .limit(10);
+                .limit(totalNeeded);
 
             if (poolError) {
                 console.error(`   ❌ [SQL ERROR]`, poolError.message);
                 continue;
             }
 
-            if (!poolLeads || poolLeads.length === 0) {
-                console.log(`   ⚠️ No Response (NR) pool is empty for this workspace! Cannot refill ${agent.full_name}.`);
-                continue; 
-            }
+            const updatePromises = [];
 
-            for (const lead of poolLeads) {
-                const refillNote = `⛽ [SYSTEM: AUTO-REFILL]\nLead recycled from 'No Response (NR)'. Reassigned to ${agent.full_name} as a fresh lead.`;
-                const updatedNotes = lead.notes ? `${lead.notes}\n\n${refillNote}` : refillNote;
+            for (let i = 0; i < starvedAgents.length; i++) {
+                const agent = starvedAgents[i];
+                console.log(`   🔍 Assigning from pool for: ${agent.full_name}`);
 
-                const { error: updateError } = await supabaseAdmin
-                    .from("leads")
-                    .update({
-                        assigned_to: agent.id,
-                        status: "new",
-                        notes: updatedNotes,
-                        last_contacted: new Date().toISOString() 
-                    })
-                    .eq("id", lead.id)
-                    .eq("tenant_id", tenantId); // Strict match just in case
+                const poolLeads = allPoolLeads ? allPoolLeads.slice(i * 10, i * 10 + 10) : [];
 
-                if (!updateError) {
-                    tenantRefilled++;
-                    globalTotalRefilled++;
+                if (!poolLeads || poolLeads.length === 0) {
+                    console.log(`   ⚠️ No Response (NR) pool is empty/exhausted for this workspace! Cannot refill ${agent.full_name}.`);
+                    continue; 
                 }
+
+                for (const lead of poolLeads) {
+                    const refillNote = `⛽ [SYSTEM: AUTO-REFILL]\nLead recycled from 'No Response (NR)'. Reassigned to ${agent.full_name} as a fresh lead.`;
+                    const updatedNotes = lead.notes ? `${lead.notes}\n\n${refillNote}` : refillNote;
+
+                    const updatePromise = supabaseAdmin
+                        .from("leads")
+                        .update({
+                            assigned_to: agent.id,
+                            status: "new",
+                            notes: updatedNotes,
+                            last_contacted: new Date().toISOString() 
+                        })
+                        .eq("id", lead.id)
+                        .eq("tenant_id", tenantId) // Strict match just in case
+                        .then(({ error: updateError }) => {
+                            if (!updateError) {
+                                tenantRefilled++;
+                                globalTotalRefilled++;
+                            }
+                        });
+
+                    updatePromises.push(updatePromise);
+                }
+                
+                console.log(`   ✅ Prepared ${poolLeads.length} leads for ${agent.full_name}`);
             }
-            
-            console.log(`   ✅ Gave ${poolLeads.length} leads to ${agent.full_name}`);
+
+            if (updatePromises.length > 0) {
+                await Promise.all(updatePromises);
+            }
         }
     } // End of Tenant Loop
 

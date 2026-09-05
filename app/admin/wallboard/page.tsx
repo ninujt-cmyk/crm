@@ -77,7 +77,7 @@ function AgentStatsModal({ agent, open, onClose }: { agent: Agent | null, open: 
     };
 
     fetchStats();
-    const interval = setInterval(fetchStats, 10000);
+    const interval = setInterval(fetchStats, 30000);
     return () => clearInterval(interval);
   }, [agent, open, supabase]);
 

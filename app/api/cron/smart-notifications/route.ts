@@ -114,12 +114,24 @@ export async function GET(request: Request) {
 
         const checkedInIds = new Set(attendance?.map(a => a.user_id) || [])
 
+        const notificationsBatch = []
         for (const user of telecallers) {
           if (!checkedInIds.has(user.id)) {
             // NOT CHECKED IN -> Pass tenant_id to the helper
-            await sendNotification(user.id, user.tenant_id, "⚠️ Attendance Alert", getRandomMsg(MESSAGES.LATE_CHECKIN))
-            notificationsSent++
+            notificationsBatch.push({
+              tenant_id: user.tenant_id,
+              user_id: user.id,
+              title: "⚠️ Attendance Alert",
+              message: getRandomMsg(MESSAGES.LATE_CHECKIN),
+              is_read: false,
+              type: 'system',
+              created_at: new Date().toISOString()
+            })
           }
+        }
+        if (notificationsBatch.length > 0) {
+          await sendNotificationsBatch(notificationsBatch)
+          notificationsSent += notificationsBatch.length
         }
       }
     }
@@ -157,6 +169,7 @@ export async function GET(request: Request) {
             }
         })
 
+        const notificationsBatch = []
         for (const user of telecallers) {
           const count = loginCounts[user.id] || 0
           let title = ""
@@ -181,9 +194,20 @@ export async function GET(request: Request) {
 
           if (message) {
               // Pass the tenant_id to the helper
-              await sendNotification(user.id, user.tenant_id, title, message)
-              notificationsSent++
+              notificationsBatch.push({
+                tenant_id: user.tenant_id,
+                user_id: user.id,
+                title: title,
+                message: message,
+                is_read: false,
+                type: 'system',
+                created_at: new Date().toISOString()
+              })
           }
+        }
+        if (notificationsBatch.length > 0) {
+          await sendNotificationsBatch(notificationsBatch)
+          notificationsSent += notificationsBatch.length
         }
       }
     }
@@ -210,4 +234,10 @@ async function sendNotification(userId: string, tenantId: string, title: string,
     })
 
     if (error) console.error("DB Insert Error", error)
+}
+
+async function sendNotificationsBatch(notifications: any[]) {
+    if (!notifications || notifications.length === 0) return
+    const { error } = await supabaseAdmin.from('notifications').insert(notifications)
+    if (error) console.error("DB Batch Insert Error", error)
 }

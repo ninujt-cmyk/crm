@@ -17,11 +17,27 @@ export function LiveLeaderboard() {
 
     useEffect(() => {
         const fetchLeaders = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            let tenantId = org?.id;
+            if (!tenantId) {
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('tenant_id')
+                    .eq('id', user.id)
+                    .single();
+                tenantId = profile?.tenant_id;
+            }
+
+            if (!tenantId) return;
+
             if (isRealEstate) {
                 // Real Estate uses deals table
                 const { data, error } = await supabase
                     .from('agent_leaderboard_view')
                     .select('*')
+                    .eq('tenant_id', tenantId)
                     .order('total_revenue', { ascending: false })
                     .order('deals_closed', { ascending: false })
                     .limit(5);
@@ -38,7 +54,8 @@ export function LiveLeaderboard() {
                 const { data: leadsData, error } = await supabase
                     .from('leads')
                     .select('assigned_to, disbursed_amount, users!leads_assigned_to_fkey(full_name)')
-                    .ilike('status', 'disbursed');
+                    .eq('tenant_id', tenantId)
+                    .eq('status', 'Disbursed');
 
                 if (!error && leadsData) {
                     const agentStats: Record<string, { name: string, revenue: number, deals: number }> = {};

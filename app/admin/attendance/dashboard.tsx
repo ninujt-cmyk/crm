@@ -240,7 +240,7 @@ export function AdminAttendanceDashboard() {
 
       // 🔴 ALL QUERIES EXPLICITLY FILTERED BY tenantId
       const [usersRes, attendanceRes, feedRes, missingRes, holidaysRes, broadcastsRes] = await Promise.all([
-        supabase.from("users").select("*").eq("is_active", true).eq('tenant_id', tenantId).order("full_name"),
+        supabase.from("users").select("id, full_name, email, role, department, is_active").eq("is_active", true).eq('tenant_id', tenantId).order("full_name"),
         supabase.from("attendance").select(`*, user:users!attendance_user_id_fkey(full_name, email, department)`)
           .eq('tenant_id', tenantId)
           .gte("date", startDateStr)
@@ -254,11 +254,11 @@ export function AdminAttendanceDashboard() {
           .eq("date", yesterdayStr)
           .not("check_in", "is", null)
           .is("check_out", null),
-        supabase.from("holidays").select("*")
+        supabase.from("holidays").select("id, date, name, type, is_working_day")
           .eq('tenant_id', tenantId)
           .gte("date", format(startOfMonth(dateRange.start), "yyyy-MM-dd"))
           .lte("date", format(endOfMonth(dateRange.end), "yyyy-MM-dd")),
-        supabase.from("employee_broadcasts").select("*").eq('tenant_id', tenantId)
+        supabase.from("employee_broadcasts").select("id, user_id, message, is_active").eq('tenant_id', tenantId)
       ]);
 
       if (usersRes.error) throw usersRes.error;
@@ -347,7 +347,7 @@ export function AdminAttendanceDashboard() {
       // Reload broadcasts to sync state
       const { data: updatedData } = await supabase
         .from("employee_broadcasts")
-        .select("*")
+        .select("id, user_id, message, is_active")
         .eq("tenant_id", tenantId);
       if (updatedData) {
         const map: { [userId: string]: { id: string; message: string; is_active: boolean } } = {};

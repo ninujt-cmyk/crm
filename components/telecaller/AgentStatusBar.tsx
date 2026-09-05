@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 // ✅ IMPORT THE NEW SECURE SERVER ACTION
 import { updateTelecallerStatus } from "@/app/actions/user-status" 
+import { ozonetelVirtualLogin, ozonetelUpdateStatus } from "@/app/actions/ozonetel"
 import { 
   PhoneCall, Coffee, Power, Clock, CheckCircle2, AlertCircle, Loader2, Sparkles, Network
 } from "lucide-react"
@@ -35,6 +36,9 @@ export function AgentStatusBar({ userId }: { userId: string }) {
         setReason(data.status_reason)
         const updatedTime = new Date(data.status_updated_at).getTime()
         setTimer(Math.floor((Date.now() - updatedTime) / 1000))
+        
+        // Ensure Ozonetel virtual login is active when CRM is opened
+        ozonetelVirtualLogin();
       }
     }
     fetchStatus()
@@ -71,6 +75,13 @@ export function AgentStatusBar({ userId }: { userId: string }) {
         setReason(newReason);
         setTimer(0); 
         toast({ description: `Status updated to ${newReason || newStatus}` })
+        
+        // Sync with Ozonetel
+        if (newStatus === 'ready' || newStatus === 'active') {
+          ozonetelUpdateStatus('Ready');
+        } else if (newStatus === 'break' || newStatus === 'offline') {
+          ozonetelUpdateStatus('Pause');
+        }
       } else {
         toast({ description: "Failed to update status", variant: "destructive" })
       }

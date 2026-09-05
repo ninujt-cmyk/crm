@@ -38,6 +38,7 @@ async function handleWebhook(req: Request) {
     const callStatus = searchParams.get('call_status') || ''; // 'Ring', 'Answered', 'Hangup'
     const callDirection = searchParams.get('call_direction') || ''; // 'inbound', 'outbound'
     const callDuration = searchParams.get('call_duration') || '0';
+    const dtmfInput = searchParams.get('dtmf_input') || searchParams.get('digit') || '';
 
     if (!uuid || !callerNumber) {
         return NextResponse.json({ error: 'Missing required parameters (uuid, caller_number)' }, { status: 400 });
@@ -94,8 +95,19 @@ async function handleWebhook(req: Request) {
             notes: `CloudConnect Call (${callStatus}). Ext: ${extensionNumber}`
         };
 
+        if (dtmfInput) {
+            logData.notes += ` | DTMF Input: ${dtmfInput}`;
+        }
+
         if (lead?.id) {
             logData.lead_id = lead.id;
+            
+            // If they pressed 1 or 2, they are interested or need more info
+            if (dtmfInput === '1' || dtmfInput === '2') {
+                await supabaseAdmin.from('leads').update({ status: 'Interested' }).eq('id', lead.id);
+            } else if (dtmfInput === '3') {
+                await supabaseAdmin.from('leads').update({ status: 'Not Interested' }).eq('id', lead.id);
+            }
         }
 
         if (existingLog) {
